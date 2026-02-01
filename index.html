@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="GeoCanvas Pro - Ferramenta de geometria para mesas digitalizadoras">
+    <title>GeoCanvas Pro | Github Edition</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #ef4444;
+            --sidebar-bg: #ffffff;
+            --bg-app: #f3f4f6;
+            --border: #e5e7eb;
+            --text-main: #1f2937;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+
+        body { 
+            background: var(--bg-app); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            overflow: hidden; 
+            display: flex; 
+            height: 100vh;
+            color: var(--text-main);
+        }
+
+        /* Sidebar Design */
+        #sidebar {
+            width: 280px; height: 100%; background: var(--sidebar-bg);
+            border-right: 1px solid var(--border); display: flex; flex-direction: column;
+            z-index: 100; overflow-y: auto; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+        }
+
+        @media (max-width: 768px) {
+            #sidebar { position: absolute; transform: translateX(-100%); width: 260px; }
+            #sidebar.open { transform: translateX(0); }
+        }
+
+        .header { padding: 20px; background: var(--primary); color: white; font-weight: 700; text-align: center; letter-spacing: 1px; }
+        
+        .group { padding: 15px; border-bottom: 1px solid var(--border); }
+        .group-label { font-size: 11px; font-weight: 800; color: #9ca3af; margin-bottom: 10px; text-transform: uppercase; }
+        
+        .grid-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        button {
+            padding: 10px 5px; border: 1px solid var(--border); background: #fff;
+            border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500;
+            transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+
+        button:hover { background: #f9fafb; border-color: var(--primary); }
+        button.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); }
+        .btn-danger { color: var(--danger); border-color: #fee2e2; }
+        .btn-danger:hover { background: #fef2f2; }
+
+        /* Canvas Area */
+        #canvas-container { 
+            flex-grow: 1; position: relative; background: #fff;
+            /* Malha quadriculada quase transparente */
+            background-image: 
+                linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), 
+                linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        canvas { width: 100%; height: 100%; cursor: crosshair; display: block; }
+
+        .menu-toggle {
+            display: none; position: absolute; top: 15px; right: 15px;
+            z-index: 200; width: 48px; height: 48px; border-radius: 12px;
+            background: var(--primary); color: white; border: none; font-size: 22px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        @media (max-width: 768px) { .menu-toggle { display: block; } }
+
+        /* Estilização dos Inputs */
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--primary); }
+        input[type="color"] { border: none; width: 100%; height: 35px; cursor: pointer; background: none; }
+    </style>
+</head>
+<body>
+
+<button class="menu-toggle" aria-label="Abrir Menu" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+
+<aside id="sidebar">
+    <div class="header">GEOCANVAS PRO</div>
+    
+    <div class="group">
+        <div class="group-label">Edição & Atalhos</div>
+        <div class="grid-btns">
+            <button id="selectBtn" title="Atalho: V">🖱️ Mover</button>
+            <button id="deleteBtn" class="btn-danger" title="Atalho: Del">✖ Excluir</button>
+            <button id="clearBtn" class="btn-danger" style="grid-column: span 2">🗑️ Limpar Tudo</button>
+        </div>
+    </div>
+
+    <div class="group">
+        <div class="group-label">Ferramentas de Escrita</div>
+        <div class="grid-btns">
+            <button id="penBtn" class="active">✏️ Pincel</button>
+            <button id="eraserBtn">🧽 Borracha</button>
+        </div>
+    </div>
+
+    <div class="group">
+        <div class="group-label">Formas Geométricas</div>
+        <div class="grid-btns">
+            <button id="lineBtn">― Reta</button>
+            <button id="circleBtn">◯ Círculo</button>
+            <button id="squareBtn">□ Quadrado</button>
+            <button id="rectBtn">▭ Retâng.</button>
+            <button id="triEquiBtn">▲ Equilát.</button>
+            <button id="triIsoBtn">△ Isósc.</button>
+            <button id="triRectBtn">∟△ Retân.</button>
+            <button id="trapezoidBtn">⬟ Trapéz.</button>
+            <button id="rhombusBtn" style="grid-column: span 2">◇ Losango</button>
+        </div>
+    </div>
+
+    <div class="group">
+        <div class="group-label">Configurações</div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <label style="font-size: 11px;">Cor do Traço
+                <input type="color" id="colorPicker" value="#2563eb">
+            </label>
+            <label style="font-size: 11px;">Espessura
+                <input type="range" id="thickness" min="1" max="30" value="3">
+            </label>
+        </div>
+    </div>
+</aside>
+
+<main id="canvas-container">
+    <canvas id="mainCanvas"></canvas>
+</main>
+
+<script>
+    /** @type {HTMLCanvasElement} */
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d', { desynchronized: true }); // Otimização para latência de caneta
+    
+    let shapes = [];
+    let isDrawing = false;
+    let currentShape = null;
+    let selectedShape = null;
+    let mode = 'pen';
+
+    // Responsividade do Canvas
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.parentElement.clientWidth * dpr;
+        canvas.height = canvas.parentElement.clientHeight * dpr;
+        ctx.scale(dpr, dpr);
+        render();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Funções de Gerenciamento
+    function deleteSelected() {
+        if (selectedShape) {
+            shapes = shapes.filter(s => s !== selectedShape);
+            selectedShape = null;
+            render();
+        }
+    }
+
+    // Teclas de Atalho
+    window.addEventListener('keydown', (e) => {
+        if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
+        if (e.key === "v") document.getElementById('selectBtn').click();
+    });
+
+    document.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.id === 'clearBtn') { shapes = []; selectedShape = null; render(); return; }
+            if (btn.id === 'deleteBtn') { deleteSelected(); return; }
+            
+            mode = btn.id.replace('Btn', '');
+            document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+        });
+    });
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        shapes.forEach(s => {
+            ctx.save();
+            ctx.beginPath();
+            ctx.lineWidth = s.width;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (s.type === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = s.color;
+            }
+
+            const {x, y, w, h} = s;
+
+            switch(s.type) {
+                case 'pen':
+                case 'eraser':
+                    if (s.points?.length > 1) {
+                        ctx.moveTo(s.points[0].x, s.points[0].y);
+                        for(let i=1; i<s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+                    }
+                    break;
+                case 'line':
+                    ctx.moveTo(x, y); ctx.lineTo(x + w, y + h);
+                    break;
+                case 'rect':
+                    ctx.strokeRect(x, y, w, h);
+                    break;
+                case 'square':
+                    let size = Math.abs(w) > Math.abs(h) ? w : h;
+                    ctx.strokeRect(x, y, size, size);
+                    break;
+                case 'circle':
+                    ctx.arc(x + w/2, y + h/2, Math.sqrt(w*w + h*h)/2, 0, Math.PI*2);
+                    break;
+                case 'triEqui':
+                case 'triIso':
+                    ctx.moveTo(x + w/2, y); ctx.lineTo(x, y + h); ctx.lineTo(x + w, y + h); ctx.closePath();
+                    break;
+                case 'triRect':
+                    ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.lineTo(x + w, y + h); ctx.closePath();
+                    break;
+                case 'trapezoid':
+                    ctx.moveTo(x + w*0.2, y); ctx.lineTo(x + w*0.8, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath();
+                    break;
+                case 'rhombus':
+                    ctx.moveTo(x + w/2, y); ctx.lineTo(x + w, y + h/2); ctx.lineTo(x + w/2, y + h); ctx.lineTo(x, y + h/2); ctx.closePath();
+                    break;
+            }
+            ctx.stroke();
+
+            if (selectedShape === s && mode === 'select') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.setLineDash([5, 5]); ctx.strokeStyle = '#2563eb';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - 8, y - 8, w + 16, h + 16);
+            }
+            ctx.restore();
+        });
+    }
+
+    // Pointer Management (Mouse + Pen + Touch)
+    canvas.onpointerdown = (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        const x = e.offsetX, y = e.offsetY;
+        isDrawing = true;
+        
+        if (mode === 'select') {
+            selectedShape = [...shapes].reverse().find(s => 
+                x >= Math.min(s.x, s.x+s.w)-20 && x <= Math.max(s.x, s.x+s.w)+20 &&
+                y >= Math.min(s.y, s.y+s.h)-20 && y <= Math.max(s.y, s.y+s.h)+20
+            );
+            if (selectedShape) {
+                currentShape = selectedShape;
+                currentShape.dragX = x - currentShape.x;
+                currentShape.dragY = y - currentShape.y;
+            }
+            render(); return;
+        }
+
+        currentShape = {
+            type: mode, x, y, w: 0, h: 0,
+            color: document.getElementById('colorPicker').value,
+            width: document.getElementById('thickness').value,
+            points: [{x, y}]
+        };
+        shapes.push(currentShape);
+    };
+
+    canvas.onpointermove = (e) => {
+        if (!isDrawing || !currentShape) return;
+        const x = e.offsetX, y = e.offsetY;
+
+        if (mode === 'select') {
+            const dx = x - currentShape.dragX - currentShape.x;
+            const dy = y - currentShape.dragY - currentShape.y;
+            currentShape.x += dx; currentShape.y += dy;
+            if(currentShape.points) currentShape.points.forEach(p => { p.x += dx; p.y += dy; });
+        } else {
+            if (mode === 'pen' || mode === 'eraser') {
+                currentShape.points.push({x, y});
+                const xs = currentShape.points.map(p => p.x), ys = currentShape.points.map(p => p.y);
+                currentShape.x = Math.min(...xs); currentShape.y = Math.min(...ys);
+                currentShape.w = Math.max(...xs) - currentShape.x; currentShape.h = Math.max(...ys) - currentShape.y;
+            } else {
+                currentShape.w = x - currentShape.x; currentShape.h = y - currentShape.y;
+            }
+        }
+        render();
+    };
+
+    canvas.onpointerup = () => { isDrawing = false; currentShape = null; render(); };
+</script>
+</body>
+</html>
